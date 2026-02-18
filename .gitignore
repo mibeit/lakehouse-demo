@@ -1,0 +1,35 @@
+# Operating System
+.DS_Store
+Thumbs.db
+
+# IDE & Editors (lokal bleiben)
+.vscode/
+.idea/
+
+# Python 
+__pycache__/
+venv/
+env/
+.venv/
+environment.yml
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment
+.env*
+
+# Logs/Temp
+*.log
+tmp/
+
+# GROSSE DATEN (nur kleine Test-CSVs)
+*.parquet
+*.xlsx
+
+# Azure Configs (lokal)
+.azure/
+
+# IDE
+.classpath
+.project

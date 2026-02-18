@@ -27,7 +27,7 @@ tmp/
 *.parquet
 *.xlsx
 raw
-data/bronze/2013-2014
+data/bronze/actual
 data/bronze/upcoming
 # Azure Configs (lokal)
 .azure/

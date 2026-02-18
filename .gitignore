@@ -26,7 +26,9 @@ tmp/
 # GROSSE DATEN (nur kleine Test-CSVs)
 *.parquet
 *.xlsx
-
+raw
+data/bronze/2013-2014
+data/bronze/upcoming
 # Azure Configs (lokal)
 .azure/
 

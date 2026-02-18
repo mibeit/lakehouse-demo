@@ -6,4 +6,4 @@ This project demonstrates a **modern Data Lakehouse architecture** on Azure with
 
 ## 🏗️ Architecture Overview
 
-<img src="images/lakehouse-architecture.png" width="800" height="400" alt="Lakehouse Architecture">
+<img src="images/bronze_data.drawio.png" width="800" height="400" alt="Lakehouse Architecture">

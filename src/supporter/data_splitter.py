@@ -53,8 +53,33 @@ class DataSplitter:
         # e.g. 'purchase.order' -> 'purchase.order.csv'
         return f"{table_name}.csv"
     
+    def detect_delimiter(self, filepath: Path, delimiters: List[str] = [',', ';']) -> str:
+        """
+        Auto-detect the correct delimiter by checking header row
+        
+        Args:
+            filepath: Path to CSV file
+            delimiters: List of delimiters to check
+            
+        Returns:
+            Detected delimiter
+        """
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                header = f.readline()
+            
+            # Count occurrences of each delimiter
+            delimiter_counts = {delim: header.count(delim) for delim in delimiters}
+            detected = max(delimiter_counts, key=delimiter_counts.get)
+            
+            logger.debug(f"{filepath.name}: detected delimiter '{detected}' ({delimiter_counts})")
+            return detected
+        except Exception as e:
+            logger.warning(f"Error detecting delimiter for {filepath}: {e}. Using comma.")
+            return ','
+    
     def load_table(self, table_name: str) -> Optional[pl.DataFrame]:
-        """Load a table from CSV"""
+        """Load a table from CSV with auto-detected delimiter"""
         csv_file = self.raw_path / self.get_csv_filename(table_name)
         
         if not csv_file.exists():
@@ -62,8 +87,11 @@ class DataSplitter:
             return None
         
         try:
-            df = pl.read_csv(csv_file, truncate_ragged_lines=True, separator=";", infer_schema_length=10000)
-            logger.info(f"Loaded {table_name}: {len(df)} rows")
+            # Auto-detect delimiter
+            delimiter = self.detect_delimiter(csv_file)
+            
+            df = pl.read_csv(csv_file, truncate_ragged_lines=True, separator=delimiter, infer_schema_length=10000)
+            logger.info(f"Loaded {table_name}: {len(df)} rows, {len(df.columns)} columns (delimiter: '{delimiter}')")
             return df
         except Exception as e:
             logger.error(f"Error loading {table_name}: {e}")
@@ -161,6 +189,50 @@ class DataSplitter:
         self.save_table(df_filtered, table_name, year_range_label)
         return True
     
+    def process_dimension_tables(self, year_range_label: str = "2013-2014") -> None:
+        """
+        Process tables that are NOT date-partitioned (dimension tables).
+        These are copied as-is to the year folder without filtering.
+        """
+        logger.info(f"\nProcessing dimension/reference tables (no date filtering)...")
+        
+        # Get all CSV files from raw directory
+        all_csv_files = list(self.raw_path.glob('*.csv'))
+        
+        # Get table names that ARE configured for date splitting
+        date_split_tables = set(self.TABLE_CONFIG.keys())
+        
+        processed = 0
+        failed = 0
+        
+        for csv_file in all_csv_files:
+            # Extract table name (remove .csv extension)
+            table_name = csv_file.stem
+            
+            # Skip if this table is configured for date splitting
+            if table_name in date_split_tables:
+                continue
+            
+            logger.info(f"Loading dimension table: {table_name}")
+            
+            try:
+                # Auto-detect delimiter and load
+                delimiter = self.detect_delimiter(csv_file)
+                df = pl.read_csv(csv_file, truncate_ragged_lines=True, separator=delimiter, infer_schema_length=10000)
+                
+                logger.info(f"  Loaded {table_name}: {len(df)} rows, {len(df.columns)} columns")
+                
+                # Save directly to year folder without filtering
+                self.save_table(df, table_name, year_range_label)
+                processed += 1
+                logger.info(f"  ✅ {table_name}")
+                
+            except Exception as e:
+                logger.error(f"  ❌ {table_name} - Error: {e}")
+                failed += 1
+        
+        logger.info(f"Dimension tables processed: {processed} successful, {failed} failed\n")
+    
     def process_all(self, start_year: int = 2013, end_year: int = 2014, 
                    year_range_label: str = "2013-2014") -> None:
         """Process all configured tables"""
@@ -184,9 +256,16 @@ class DataSplitter:
                 failed += 1
         
         logger.info("\n" + "=" * 60)
-        logger.info(f"Processing completed")
+        logger.info(f"Processing completed (date-split tables)")
         logger.info(f"Successful: {processed}/{len(self.TABLE_CONFIG)}")
         logger.info(f"Failed: {failed}/{len(self.TABLE_CONFIG)}")
+        logger.info("=" * 60)
+        
+        # Process dimension/reference tables (not date-partitioned)
+        self.process_dimension_tables(year_range_label)
+        
+        logger.info("=" * 60)
+        logger.info(f"All processing completed")
         logger.info(f"Target directory: {self.bronze_path / year_range_label}")
         logger.info("=" * 60 + "\n")
     

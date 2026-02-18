@@ -189,7 +189,7 @@ class DataSplitter:
         self.save_table(df_filtered, table_name, year_range_label)
         return True
     
-    def process_dimension_tables(self, year_range_label: str = "2013-2014") -> None:
+    def process_dimension_tables(self, year_range_label: str = "actual") -> None:
         """
         Process tables that are NOT date-partitioned (dimension tables).
         These are copied as-is to the year folder without filtering.
@@ -234,7 +234,7 @@ class DataSplitter:
         logger.info(f"Dimension tables processed: {processed} successful, {failed} failed\n")
     
     def process_all(self, start_year: int = 2013, end_year: int = 2014, 
-                   year_range_label: str = "2013-2014") -> None:
+                   year_range_label: str = "actual") -> None:
         """Process all configured tables"""
         logger.info("=" * 60)
         logger.info(f"DataSplitter - Ingest Phase: {year_range_label}")
@@ -302,7 +302,7 @@ def main():
     splitter.process_all(
         start_year=2013,
         end_year=2014,
-        year_range_label="2013-2014"
+        year_range_label="actual"
     )
     
     # Create upcoming folder with all unfiltered data

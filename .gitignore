@@ -29,6 +29,7 @@ tmp/
 raw
 data/bronze/actual
 data/bronze/upcoming
+data/silver/orders
 # Azure Configs (lokal)
 .azure/
 
@@ -38,3 +39,6 @@ data/bronze/upcoming
 
 #images 
 drawio
+
+pyproject.toml
+lakehouse_demo.egg-info

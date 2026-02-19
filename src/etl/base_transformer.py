@@ -27,7 +27,7 @@ def get_logger(log_file: str) -> logging.Logger:
     formatter = logging.Formatter("%(asctime)s  %(levelname)-8s  %(message)s")
 
     # File handler
-    fh = logging.FileHandler(LOG_DIR / log_file)
+    fh = logging.FileHandler(LOG_DIR / log_file, mode="w")
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
@@ -99,6 +99,11 @@ class BaseTransformer(ABC):
         self.logger.info(f"[TRANSFORM] Dropped {dropped} empty column(s) | Remaining: {df.shape[1]}")
 
         return df
+    
+    def _to_datetime(self, series: pd.Series) -> pd.Series:
+        """Cast to datetime64[ns] consistently across all transformers."""
+        return pd.to_datetime(series, errors="coerce").astype("datetime64[ns]")
+
 
 
     def save_silver(self, df: pd.DataFrame, filename: str) -> None:

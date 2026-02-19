@@ -1,0 +1,100 @@
+dimensions:
+  delivery_methods:
+    bronze_file: "application.deliverymethods.csv"
+    silver_file: "delivery_methods.parquet"
+    silver_folder: "dimensions"
+    log_file: "transform_delivery_methods.log"
+    date_columns: ["ValidFrom", "ValidTo"]
+    rename:
+      DeliveryMethodID:   "delivery_method_id"
+      DeliveryMethodName: "delivery_method_name"
+      LastEditedBy:       "last_edited_by"
+      ValidFrom:          "valid_from"
+      ValidTo:            "valid_to"
+
+  payment_methods:
+    bronze_file: "application.paymentmethod.csv"
+    silver_file: "payment_methods.parquet"
+    silver_folder: "dimensions"
+    log_file: "transform_payment_methods.log"
+    date_columns: ["ValidFrom", "ValidTo"]
+    rename:
+      PaymentMethodID:   "payment_method_id"
+      PaymentMethodName: "payment_method_name"
+      LastEditedBy:      "last_edited_by"
+      ValidFrom:         "valid_from"
+      ValidTo:           "valid_to"
+
+  transaction_types:
+    bronze_file: "application.transactiontypes.csv"
+    silver_file: "transaction_types.parquet"
+    silver_folder: "dimensions"
+    log_file: "transform_transaction_types.log"
+    date_columns: ["ValidFrom", "ValidTo"]
+    rename:
+      TransactionTypeID:   "transaction_type_id"
+      TransactionTypeName: "transaction_type_name"
+      LastEditedBy:        "last_edited_by"
+      ValidFrom:           "valid_from"
+      ValidTo:             "valid_to"
+
+  stock_groups:
+    bronze_file: "warehouse.stockgroups.csv"
+    silver_file: "stock_groups.parquet"
+    silver_folder: "dimensions"
+    log_file: "transform_stock_groups.log"
+    date_columns: ["ValidFrom", "ValidTo"]
+    rename:
+      StockGroupID:   "stock_group_id"
+      StockGroupName: "stock_group_name"
+      LastEditedBy:   "last_edited_by"
+      ValidFrom:      "valid_from"
+      ValidTo:        "valid_to"
+
+  colors:
+    bronze_file: "warehouse.colors.csv"
+    silver_file: "colors.parquet"
+    silver_folder: "dimensions"
+    log_file: "transform_colors.log"
+    date_columns: ["ValidFrom", "ValidTo"]
+    rename:
+      ColorID:     "color_id"
+      ColorName:   "color_name"
+      LastEditedBy: "last_edited_by"
+      ValidFrom:   "valid_from"
+      ValidTo:     "valid_to"
+
+  package_types:
+    bronze_file: "warehouse.packagetypes.csv"
+    silver_file: "package_types.parquet"
+    silver_folder: "dimensions"
+    log_file: "transform_package_types.log"
+    date_columns: ["ValidFrom", "ValidTo"]
+    rename:
+      PackageTypeID:   "package_type_id"
+      PackageTypeName: "package_type_name"
+      LastEditedBy:    "last_edited_by"
+      ValidFrom:       "valid_from"
+      ValidTo:         "valid_to"
+
+  countries:
+    bronze_file: "application.countries.csv"
+    silver_file: "countries.parquet"
+    silver_folder: "dimensions"
+    log_file: "transform_countries.log"
+    date_columns: ["ValidFrom", "ValidTo"]
+    rename:
+      CountryID:               "country_id"
+      CountryName:             "country_name"
+      FormalName:              "formal_name"
+      IsoAlpha3Code:           "iso_alpha3_code"
+      IsoNumericCode:          "iso_numeric_code"
+      CountryType:             "country_type"
+      LatestRecordedPopulation: "latest_recorded_population"
+      Continent:               "continent"
+      Region:                  "region"
+      Subregion:               "subregion"
+      Border:                  "border"
+      LastEditedBy:            "last_edited_by"
+      ValidFrom:               "valid_from"
+      ValidTo:                 "valid_to"

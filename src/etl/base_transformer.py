@@ -88,6 +88,20 @@ class BaseTransformer(ABC):
         self.logger.info(f"[LOAD] Shape: {df.shape[0]} rows x {df.shape[1]} columns")
 
         return df
+    
+    
+    def load_silver(self, silver_path: Path) -> pd.DataFrame:
+        """Load cleaned Parquet from Silver layer into a Pandas DataFrame."""
+        if not silver_path.exists():
+            self.logger.error(f"[LOAD] Silver file not found: {silver_path}")
+            return pd.DataFrame()
+
+        df = pd.read_parquet(silver_path)
+
+        self.logger.info(f"[LOAD] Loaded: {silver_path.name}")
+        self.logger.info(f"[LOAD] Shape: {df.shape[0]} rows x {df.shape[1]} columns")
+
+        return df
 
 
     def _drop_empty_columns(self, df: pd.DataFrame) -> pd.DataFrame:

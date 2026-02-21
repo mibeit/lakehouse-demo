@@ -1,8 +1,8 @@
 import pandas as pd
-from src.etl.base_transformer import BaseTransformer, BASE_DIR
+from src.etl.base_transformer import SilverTransformer, BASE_DIR
 
 
-class PeopleTransformer(BaseTransformer):
+class PeopleTransformer(SilverTransformer):
     """Transform application.people CSV from Bronze layer to Silver (Parquet)."""
 
     _output_filename = "people.parquet"
@@ -50,33 +50,15 @@ class PeopleTransformer(BaseTransformer):
         return df
 
     def _handle_nulls(self, df: pd.DataFrame) -> pd.DataFrame:
-        # HashedPassword, UserPreferences, Photo, CustomFields, OtherLanguages
-        # werden bereits durch _drop_empty_columns entfernt (alle 906 Nulls)
-        expected_nulls = {
-            "valid_to": "Currently active records (SCD pattern)"
-        }
-        for col, reason in expected_nulls.items():
-            null_count = df[col].isna().sum()
-            self.logger.info(f"[NULLS] {col}: {null_count} null(s) -> expected ({reason})")
-
-        required_columns = ["person_id", "full_name", "is_employee", "is_salesperson"]
-        for col in required_columns:
-            null_count = df[col].isna().sum()
-            if null_count > 0:
-                self.logger.warning(f"[NULLS] Unexpected nulls in {col}: {null_count}")
-            else:
-                self.logger.info(f"[NULLS] {col}: OK (0 nulls)")
-
-        return df
-
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        self.logger.info("[TRANSFORM] Starting pipeline: application.people")
-        df = self._drop_empty_columns(df)  # entfernt 5 komplett leere Spalten
-        df = self._rename_columns(df)
-        df = self._cast_dtypes(df)
-        df = self._handle_nulls(df)
-        self.logger.info(f"[TRANSFORM] Complete | Shape: {df.shape[0]} x {df.shape[1]}")
-        return df
+        # HashedPassword, UserPreferences, Photo, CustomFields, OtherLanguages:
+        # already removed by _drop_empty_columns (all 906 nulls)
+        return self._validate_nulls(
+            df,
+            expected_nulls={
+                "valid_to": "Currently active records (SCD pattern)",
+            },
+            required_columns=["person_id", "full_name", "is_employee", "is_salesperson"],
+        )
 
 
 if __name__ == "__main__":

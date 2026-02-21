@@ -1,8 +1,8 @@
 import pandas as pd
-from src.etl.base_transformer import BaseTransformer, BASE_DIR
+from src.etl.base_transformer import SilverTransformer, BASE_DIR
 
 
-class InvoiceTransformer(BaseTransformer):
+class InvoiceTransformer(SilverTransformer):
     """Transform sales.invoices CSV from Bronze layer to Silver (Parquet)."""
 
     _output_filename = "invoices.parquet"
@@ -58,33 +58,10 @@ class InvoiceTransformer(BaseTransformer):
         return df
 
     def _handle_nulls(self, df: pd.DataFrame) -> pd.DataFrame:
-        # Alle leeren Spalten bereits durch _drop_empty_columns entfernt:
-        # CreditNoteReason, Comments, InternalComments, DeliveryRun, RunPosition
-
-        required_columns = [
-            "invoice_id",
-            "customer_id",
-            "order_id",
-            "invoice_date",
-            "salesperson_id"
-        ]
-        for col in required_columns:
-            null_count = df[col].isna().sum()
-            if null_count > 0:
-                self.logger.warning(f"[NULLS] Unexpected nulls in {col}: {null_count}")
-            else:
-                self.logger.info(f"[NULLS] {col}: OK (0 nulls)")
-
-        return df
-
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        self.logger.info("[TRANSFORM] Starting pipeline: sales.invoices")
-        df = self._drop_empty_columns(df)  # entfernt 5 leere Spalten
-        df = self._rename_columns(df)
-        df = self._cast_dtypes(df)
-        df = self._handle_nulls(df)
-        self.logger.info(f"[TRANSFORM] Complete | Shape: {df.shape[0]} x {df.shape[1]}")
-        return df
+        return self._validate_nulls(
+            df,
+            required_columns=["invoice_id", "customer_id", "order_id", "invoice_date", "salesperson_id"],
+        )
 
 
 if __name__ == "__main__":

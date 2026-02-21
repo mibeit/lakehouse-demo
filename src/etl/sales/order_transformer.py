@@ -1,9 +1,8 @@
 import pandas as pd
-from pathlib import Path
-from src.etl.base_transformer import BaseTransformer, BASE_DIR
+from src.etl.base_transformer import SilverTransformer, BASE_DIR
 
 
-class OrderTransformer(BaseTransformer):
+class OrderTransformer(SilverTransformer):
     """Transform sales.order CSV from Bronze layer to Silver (Parquet)."""
 
     _output_filename = "orders.parquet"
@@ -68,38 +67,15 @@ class OrderTransformer(BaseTransformer):
 
 
     def _handle_nulls(self, df: pd.DataFrame) -> pd.DataFrame:
-        expected_nulls = {
-            "picked_by_id":           "Order not yet picked",
-            "backorder_order_id":     "No backorder exists",
-            "picking_completed_when": "Order not yet completed"
-        }
-        for col, reason in expected_nulls.items():
-            null_count = df[col].isna().sum()
-            self.logger.info(f"[NULLS] {col}: {null_count} null(s) -> expected ({reason})")
-
-        required_columns = ["order_id", "customer_id", "order_date", "salesperson_id"]
-        for col in required_columns:
-            null_count = df[col].isna().sum()
-            if null_count > 0:
-                self.logger.warning(f"[NULLS] Unexpected nulls in {col}: {null_count}")
-            else:
-                self.logger.info(f"[NULLS] {col}: OK (0 nulls)")
-
-        return df
-
-
-    # ------------------------------------------------------------------ #
-    #  Orchestration (overrides abstract method)                         #
-    # ------------------------------------------------------------------ #
-
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        self.logger.info("[TRANSFORM] Starting pipeline: sales.order")
-        df = self._drop_empty_columns(df)
-        df = self._rename_columns(df)
-        df = self._cast_dtypes(df)
-        df = self._handle_nulls(df)
-        self.logger.info(f"[TRANSFORM] Complete | Shape: {df.shape[0]} x {df.shape[1]}")
-        return df
+        return self._validate_nulls(
+            df,
+            expected_nulls={
+                "picked_by_id":           "Order not yet picked",
+                "backorder_order_id":     "No backorder exists",
+                "picking_completed_when": "Order not yet completed",
+            },
+            required_columns=["order_id", "customer_id", "order_date", "salesperson_id"],
+        )
 
 
 if __name__ == "__main__":

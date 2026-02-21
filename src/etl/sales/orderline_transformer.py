@@ -1,9 +1,8 @@
 import pandas as pd
-from pathlib import Path
-from src.etl.base_transformer import BaseTransformer, BASE_DIR
+from src.etl.base_transformer import SilverTransformer, BASE_DIR
 
 
-class OrderLineTransformer(BaseTransformer):
+class OrderLineTransformer(SilverTransformer):
     """Transform sales.orderline CSV from Bronze layer to Silver (Parquet)."""
 
     _output_filename = "order_lines.parquet"
@@ -59,43 +58,13 @@ class OrderLineTransformer(BaseTransformer):
 
 
     def _handle_nulls(self, df: pd.DataFrame) -> pd.DataFrame:
-        # Expected nulls – dokumentiert warum
-        expected_nulls = {
-            "picking_completed_when": "Order line not yet picked"
-        }
-        for col, reason in expected_nulls.items():
-            null_count = df[col].isna().sum()
-            self.logger.info(f"[NULLS] {col}: {null_count} null(s) -> expected ({reason})")
-
-        # Required columns – dürfen keine Nulls haben
-        required_columns = [
-            "order_line_id",
-            "order_id",
-            "stock_item_id",
-            "quantity",
-            "unit_price"
-        ]
-        for col in required_columns:
-            null_count = df[col].isna().sum()
-            if null_count > 0:
-                self.logger.warning(f"[NULLS] Unexpected nulls in {col}: {null_count}")
-            else:
-                self.logger.info(f"[NULLS] {col}: OK (0 nulls)")
-
-        return df
-
-    # ------------------------------------------------------------------ #
-    #  Orchestration                                                      #
-    # ------------------------------------------------------------------ #
-
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        self.logger.info("[TRANSFORM] Starting pipeline: sales.orderline")
-        df = self._drop_empty_columns(df)
-        df = self._rename_columns(df)
-        df = self._cast_dtypes(df)
-        df = self._handle_nulls(df)
-        self.logger.info(f"[TRANSFORM] Complete | Shape: {df.shape[0]} x {df.shape[1]}")
-        return df
+        return self._validate_nulls(
+            df,
+            expected_nulls={
+                "picking_completed_when": "Order line not yet picked",
+            },
+            required_columns=["order_line_id", "order_id", "stock_item_id", "quantity", "unit_price"],
+        )
 
 if __name__ == "__main__":
     transformer = OrderLineTransformer()

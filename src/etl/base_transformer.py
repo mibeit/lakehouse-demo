@@ -41,44 +41,67 @@ def get_logger(log_file: str) -> logging.Logger:
 
 class BaseTransformer(ABC):
     """
-    Abstract base class for all Bronze -> Silver transformers.
+    Abstract base class for all transformers (Silver and Gold).
 
-    Subclasses must implement:
-    - transform(df): table-specific transformation logic
+    Provides shared utilities:
+    - Logging setup
+    - File I/O (load_bronze, load_silver, save_silver, save_gold)
+    - Data cleaning helpers (_drop_empty_columns, _to_datetime, _validate_nulls)
 
-    Subclasses inherit:
-    - load_bronze(): load CSV from Bronze layer
-    - _drop_empty_columns(): drop fully empty columns
-    - save_silver(): save Parquet to Silver layer
-    - run(): orchestrate load -> transform -> save
+    Do not subclass directly — use SilverTransformer or GoldTransformer.
     """
 
-    def __init__(self, bronze_path: Path, silver_path: Path, log_file: str):
+    _output_filename: str  # Must be set by every concrete subclass
+
+    def __init__(
+        self,
+        log_file: str,
+        bronze_path: Path = None,
+        silver_path: Path = None,
+        gold_path: Path = None,
+    ):
         """
         Args:
-            bronze_path: Full path to Bronze CSV file
-            silver_path: Directory for Silver Parquet output
             log_file:    Log filename (e.g. "transform_orders.log")
+            bronze_path: Full path to Bronze CSV file (Silver transformers)
+            silver_path: Directory for Silver Parquet output
+            gold_path:   Directory for Gold Parquet output (Gold transformers)
         """
         self.bronze_path = bronze_path
         self.silver_path = silver_path
+        self.gold_path = gold_path
         self.logger = get_logger(log_file)
 
-        # Ensure Silver output directory exists
-        self.silver_path.mkdir(parents=True, exist_ok=True)
+        # Ensure output directories exist
+        if self.silver_path:
+            self.silver_path.mkdir(parents=True, exist_ok=True)
+        if self.gold_path:
+            self.gold_path.mkdir(parents=True, exist_ok=True)
 
         self.logger.info(f"[INIT] {self.__class__.__name__} initialized")
-        self.logger.info(f"[INIT] Bronze source: {self.bronze_path}")
-        self.logger.info(f"[INIT] Silver target: {self.silver_path}")
+        if self.bronze_path:
+            self.logger.info(f"[INIT] Bronze source: {self.bronze_path}")
+        if self.silver_path:
+            self.logger.info(f"[INIT] Silver target: {self.silver_path}")
+        if self.gold_path:
+            self.logger.info(f"[INIT] Gold target:   {self.gold_path}")
 
 
     # ------------------------------------------------------------------ #
     #  Shared methods (used by all transformers)                         #
     # ------------------------------------------------------------------ #
 
+    def _check_output_filename(self) -> None:
+        """Raise early if _output_filename was not set by the subclass."""
+        if not getattr(self, "_output_filename", None):
+            raise NotImplementedError(
+                f"{self.__class__.__name__} must set _output_filename "
+                "(as class attribute or in __init__)"
+            )
+
     def load_bronze(self) -> pd.DataFrame:
         """Load raw CSV from Bronze layer into a Pandas DataFrame."""
-        if not self.bronze_path.exists():
+        if not self.bronze_path or not self.bronze_path.exists():
             self.logger.error(f"[LOAD] Bronze file not found: {self.bronze_path}")
             return pd.DataFrame()
 
@@ -118,39 +141,139 @@ class BaseTransformer(ABC):
         """Cast to datetime64[ns] consistently across all transformers."""
         return pd.to_datetime(series, errors="coerce").astype("datetime64[ns]")
 
-
-
-    def save_silver(self, df: pd.DataFrame, filename: str) -> None:
+    def _validate_nulls(
+        self,
+        df: pd.DataFrame,
+        expected_nulls: dict = None,
+        required_columns: list = None,
+    ) -> pd.DataFrame:
         """
-        Save transformed DataFrame as Parquet to Silver layer.
+        Generic null validation with structured logging.
 
         Args:
-            df:       Transformed DataFrame
-            filename: Output filename (e.g. "orders.parquet")
+            df:               DataFrame to validate
+            expected_nulls:   {column: reason} — NaN values are expected here
+            required_columns: columns that must not contain any NaN
+        Returns:
+            The original DataFrame (unchanged).
         """
+        if expected_nulls:
+            for col, reason in expected_nulls.items():
+                null_count = df[col].isna().sum()
+                self.logger.info(
+                    f"[NULLS] {col}: {null_count} null(s) -> expected ({reason})"
+                )
+
+        if required_columns:
+            for col in required_columns:
+                null_count = df[col].isna().sum()
+                if null_count > 0:
+                    self.logger.warning(
+                        f"[NULLS] Unexpected nulls in {col}: {null_count}"
+                    )
+                else:
+                    self.logger.info(f"[NULLS] {col}: OK (0 nulls)")
+
+        return df
+
+    # ------------------------------------------------------------------ #
+    #  File output                                                       #
+    # ------------------------------------------------------------------ #
+
+    def _save_parquet(
+        self, df: pd.DataFrame, output_dir: Path, filename: str, layer: str
+    ) -> None:
+        """Generic save: write DataFrame as Parquet to *output_dir*/*filename*."""
         if df.empty:
-            self.logger.warning("[SAVE] DataFrame is empty - skipping save")
+            self.logger.warning(f"[SAVE] DataFrame is empty — skipping {layer} save")
             return
 
-        output_path = self.silver_path / filename
+        output_path = output_dir / filename
         df.to_parquet(output_path, index=False)
 
-        self.logger.info(f"[SAVE] Saved: {output_path}")
+        self.logger.info(f"[SAVE] Saved to {layer}: {output_path}")
+        self.logger.info(f"[SAVE] Shape: {df.shape[0]} rows x {df.shape[1]} columns")
         self.logger.info(f"[SAVE] Size: {output_path.stat().st_size / 1024:.1f} KB")
+
+    def save_silver(self, df: pd.DataFrame, filename: str) -> None:
+        """Save transformed DataFrame as Parquet to Silver layer."""
+        self._save_parquet(df, self.silver_path, filename, "Silver")
+
+    def save_gold(self, df: pd.DataFrame, filename: str) -> None:
+        """Save transformed DataFrame as Parquet to Gold layer."""
+        self._save_parquet(df, self.gold_path, filename, "Gold")
 
 
     # ------------------------------------------------------------------ #
-    #  Abstract method (must be implemented by each subclass)            #
+    #  Abstract interface                                                #
     # ------------------------------------------------------------------ #
 
     @abstractmethod
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Table-specific transformation logic.
-        Must be implemented by every subclass.
-        """
+    def run(self) -> None:
+        """Execute the full transformation pipeline."""
         pass
 
+
+# ====================================================================== #
+#  Silver Layer                                                          #
+# ====================================================================== #
+
+
+class SilverTransformer(BaseTransformer):
+    """
+    Base class for Bronze -> Silver transformers.
+
+    Uses the Template Method pattern.  Subclasses override **hooks**:
+      _rename_columns(df)   — column renaming
+      _cast_dtypes(df)      — type casting
+      _handle_nulls(df)     — null handling / validation
+
+    The default transform() calls the hooks in order:
+      drop_empty -> rename -> cast -> handle_nulls
+
+    Override transform() only if you need a fundamentally different pipeline.
+    """
+
+    def __init__(self, bronze_path: Path, silver_path: Path, log_file: str):
+        super().__init__(
+            log_file=log_file,
+            bronze_path=bronze_path,
+            silver_path=silver_path,
+        )
+
+    # ------------------------------------------------------------------ #
+    #  Hooks — override in subclasses                                    #
+    # ------------------------------------------------------------------ #
+
+    def _rename_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Override to rename columns. Default: no-op."""
+        return df
+
+    def _cast_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Override to cast data types. Default: no-op."""
+        return df
+
+    def _handle_nulls(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Override to handle / validate null values. Default: no-op."""
+        return df
+
+    # ------------------------------------------------------------------ #
+    #  Template Method                                                   #
+    # ------------------------------------------------------------------ #
+
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Template method: drop_empty -> rename -> cast -> handle_nulls.
+        Override individual hooks for table-specific logic.
+        """
+        source = self.bronze_path.name if self.bronze_path else self.__class__.__name__
+        self.logger.info(f"[TRANSFORM] Starting pipeline: {source}")
+        df = self._drop_empty_columns(df)
+        df = self._rename_columns(df)
+        df = self._cast_dtypes(df)
+        df = self._handle_nulls(df)
+        self.logger.info(f"[TRANSFORM] Complete | Shape: {df.shape[0]} x {df.shape[1]}")
+        return df
 
     # ------------------------------------------------------------------ #
     #  Orchestration                                                     #
@@ -158,15 +281,72 @@ class BaseTransformer(ABC):
 
     def run(self) -> None:
         """Orchestrate full Bronze -> Silver pipeline: load -> transform -> save."""
+        self._check_output_filename()
+
         self.logger.info(f"[RUN] Starting Bronze -> Silver: {self.bronze_path.name}")
 
         df = self.load_bronze()
-
         if df.empty:
-            self.logger.error("[RUN] Aborting - empty DataFrame after load")
+            self.logger.error("[RUN] Aborting — empty DataFrame after load")
             return
 
         df = self.transform(df)
         self.save_silver(df, self._output_filename)
 
         self.logger.info(f"[RUN] Complete: {self._output_filename}")
+
+
+# ====================================================================== #
+#  Gold Layer                                                            #
+# ====================================================================== #
+
+
+class GoldTransformer(BaseTransformer):
+    """
+    Base class for Silver -> Gold transformers.
+
+    Subclasses must implement transform() which:
+      1. Loads required Silver Parquets internally
+      2. Joins / enriches / aggregates
+      3. Returns the final Gold DataFrame
+    """
+
+    def __init__(self, silver_path: Path, gold_path: Path, log_file: str):
+        super().__init__(
+            log_file=log_file,
+            silver_path=silver_path,
+            gold_path=gold_path,
+        )
+
+    # ------------------------------------------------------------------ #
+    #  Abstract                                                          #
+    # ------------------------------------------------------------------ #
+
+    @abstractmethod
+    def transform(self) -> pd.DataFrame:
+        """Silver -> Gold transformation.  Loads own Silver data internally."""
+        pass
+
+    # ------------------------------------------------------------------ #
+    #  Orchestration                                                     #
+    # ------------------------------------------------------------------ #
+
+    def run(self) -> None:
+        """Execute full Silver -> Gold transformation and save."""
+        self._check_output_filename()
+
+        try:
+            self.logger.info(f"[RUN] Starting Silver -> Gold: {self.__class__.__name__}")
+
+            df = self.transform()
+
+            if df.empty:
+                self.logger.error("[RUN] Aborting — empty DataFrame after transform")
+                return
+
+            self.save_gold(df, self._output_filename)
+            self.logger.info(f"[RUN] Complete: {self._output_filename} [OK]")
+
+        except Exception as e:
+            self.logger.error(f"[RUN] Error during transformation: {e}", exc_info=True)
+            raise

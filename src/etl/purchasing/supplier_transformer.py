@@ -1,8 +1,8 @@
 import pandas as pd
-from src.etl.base_transformer import BaseTransformer, BASE_DIR
+from src.etl.base_transformer import SilverTransformer, BASE_DIR
 
 
-class SupplierTransformer(BaseTransformer):
+class SupplierTransformer(SilverTransformer):
     """Transform purchasing.suppliers CSV from Bronze layer to Silver (Parquet)."""
 
     _output_filename = "suppliers.parquet"
@@ -61,33 +61,15 @@ class SupplierTransformer(BaseTransformer):
         return df
 
     def _handle_nulls(self, df: pd.DataFrame) -> pd.DataFrame:
-        expected_nulls = {
-            "delivery_method_id":  "Delivery method not always assigned",
-            "delivery_address_line1": "Some suppliers have no delivery address",
-            "internal_comments":   "Comments optional"
-        }
-        for col, reason in expected_nulls.items():
-            null_count = df[col].isna().sum()
-            self.logger.info(f"[NULLS] {col}: {null_count} null(s) -> expected ({reason})")
-
-        required_columns = ["supplier_id", "supplier_name", "supplier_category_id"]
-        for col in required_columns:
-            null_count = df[col].isna().sum()
-            if null_count > 0:
-                self.logger.warning(f"[NULLS] Unexpected nulls in {col}: {null_count}")
-            else:
-                self.logger.info(f"[NULLS] {col}: OK (0 nulls)")
-
-        return df
-
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        self.logger.info("[TRANSFORM] Starting pipeline: purchasing.suppliers")
-        df = self._drop_empty_columns(df)
-        df = self._rename_columns(df)
-        df = self._cast_dtypes(df)
-        df = self._handle_nulls(df)
-        self.logger.info(f"[TRANSFORM] Complete | Shape: {df.shape[0]} x {df.shape[1]}")
-        return df
+        return self._validate_nulls(
+            df,
+            expected_nulls={
+                "delivery_method_id":    "Delivery method not always assigned",
+                "delivery_address_line1": "Some suppliers have no delivery address",
+                "internal_comments":      "Comments optional",
+            },
+            required_columns=["supplier_id", "supplier_name", "supplier_category_id"],
+        )
 
 
 if __name__ == "__main__":

@@ -153,6 +153,9 @@ class DimCustomerTransformer(GoldTransformer):
             .fillna(df['parent_credit_limit'])
             .fillna(avg_credit)
         )
+
+        # Remove temporary column immediately
+        df = df.drop(columns=['parent_credit_limit'])
         
         after_null = df['credit_limit'].isna().sum()
         self.logger.info(f"[IMPUTE] credit_limit after imputation: {after_null} missing")
@@ -267,17 +270,6 @@ class DimCustomerTransformer(GoldTransformer):
         
         return df
 
-    def _cleanup_temporary_columns(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Remove temporary columns created during joins."""
-        self.logger.info("[CLEANUP] Removing temporary columns...")
-        
-        temp_cols = [col for col in df.columns if 'parent_credit_limit' in col]
-        if temp_cols:
-            df = df.drop(columns=temp_cols)
-            self.logger.info(f"[CLEANUP] Dropped temporary columns: {temp_cols}")
-        
-        return df
-
     # ------------------------------------------------------------------ #
     #  Saving                                                            #
     # ------------------------------------------------------------------ #
@@ -311,7 +303,6 @@ class DimCustomerTransformer(GoldTransformer):
         self.logger.info(f"[TRANSFORM] After imputation: {df.shape}")
         
         # Clean & Format
-        df = self._cleanup_temporary_columns(df)
         df = self._rename_columns(df)
         df = self._reorder_columns(df)
         

@@ -1,8 +1,8 @@
 import pandas as pd
-from src.etl.base_transformer import BaseTransformer, BASE_DIR
+from src.etl.base_transformer import SilverTransformer, BASE_DIR
 
 
-class StockItemTransformer(BaseTransformer):
+class StockItemTransformer(SilverTransformer):
     """Transform warehouse.stockitems CSV from Bronze layer to Silver (Parquet)."""
 
     _output_filename = "stock_items.parquet"
@@ -57,43 +57,19 @@ class StockItemTransformer(BaseTransformer):
         return df
 
     def _handle_nulls(self, df: pd.DataFrame) -> pd.DataFrame:
-        # InternalComments + Photo bereits durch _drop_empty_columns entfernt
-        expected_nulls = {
-            "color_id":           "Not all items have a color",
-            "brand":              "Not all items have a brand",
-            "size":               "Not all items have a size",
-            "barcode":            "Not all items have a barcode",
-            "marketing_comments": "Marketing comments optional",
-            "valid_to":           "Currently active records (SCD pattern)"
-        }
-        for col, reason in expected_nulls.items():
-            null_count = df[col].isna().sum()
-            self.logger.info(f"[NULLS] {col}: {null_count} null(s) -> expected ({reason})")
-
-        required_columns = [
-            "stock_item_id",
-            "stock_item_name",
-            "supplier_id",
-            "unit_price",
-            "tax_rate"
-        ]
-        for col in required_columns:
-            null_count = df[col].isna().sum()
-            if null_count > 0:
-                self.logger.warning(f"[NULLS] Unexpected nulls in {col}: {null_count}")
-            else:
-                self.logger.info(f"[NULLS] {col}: OK (0 nulls)")
-
-        return df
-
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        self.logger.info("[TRANSFORM] Starting pipeline: warehouse.stockitems")
-        df = self._drop_empty_columns(df)  # entfernt InternalComments + Photo
-        df = self._rename_columns(df)
-        df = self._cast_dtypes(df)
-        df = self._handle_nulls(df)
-        self.logger.info(f"[TRANSFORM] Complete | Shape: {df.shape[0]} x {df.shape[1]}")
-        return df
+        # InternalComments + Photo already removed by _drop_empty_columns
+        return self._validate_nulls(
+            df,
+            expected_nulls={
+                "color_id":           "Not all items have a color",
+                "brand":              "Not all items have a brand",
+                "size":               "Not all items have a size",
+                "barcode":            "Not all items have a barcode",
+                "marketing_comments": "Marketing comments optional",
+                "valid_to":           "Currently active records (SCD pattern)",
+            },
+            required_columns=["stock_item_id", "stock_item_name", "supplier_id", "unit_price", "tax_rate"],
+        )
 
 
 if __name__ == "__main__":

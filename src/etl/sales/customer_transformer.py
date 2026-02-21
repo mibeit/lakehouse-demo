@@ -1,9 +1,8 @@
 import pandas as pd
-from pathlib import Path
-from src.etl.base_transformer import BaseTransformer, BASE_DIR
+from src.etl.base_transformer import SilverTransformer, BASE_DIR
 
 
-class CustomerTransformer(BaseTransformer):
+class CustomerTransformer(SilverTransformer):
     """Transform sales.customer CSV from Bronze layer to Silver (Parquet)."""
 
     _output_filename = "customers.parquet"
@@ -86,46 +85,15 @@ class CustomerTransformer(BaseTransformer):
 
 
     def _handle_nulls(self, df: pd.DataFrame) -> pd.DataFrame:
-        # Expected nulls – dokumentiert warum
-        expected_nulls = {
-            "buying_group_id":           "Customer not part of a buying group",
-            "alternate_contact_person_id": "No alternate contact assigned",
-            "credit_limit":              "Customer has no credit limit set",
-        }
-        for col, reason in expected_nulls.items():
-            null_count = df[col].isna().sum()
-            self.logger.info(f"[NULLS] {col}: {null_count} null(s) -> expected ({reason})")
-
-        # Required columns
-        required_columns = [
-            "customer_id",
-            "customer_name",
-            "customer_category_id",
-            "delivery_method_id",
-            "account_opened_date"
-        ]
-        for col in required_columns:
-            null_count = df[col].isna().sum()
-            if null_count > 0:
-                self.logger.warning(f"[NULLS] Unexpected nulls in {col}: {null_count}")
-            else:
-                self.logger.info(f"[NULLS] {col}: OK (0 nulls)")
-
-        return df
-
-
-    # ------------------------------------------------------------------ #
-    #  Orchestration                                                      #
-    # ------------------------------------------------------------------ #
-
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        self.logger.info("[TRANSFORM] Starting pipeline: sales.customer")
-        df = self._drop_empty_columns(df)   # entfernt DeliveryRun + RunPosition
-        df = self._rename_columns(df)
-        df = self._cast_dtypes(df)
-        df = self._handle_nulls(df)
-        self.logger.info(f"[TRANSFORM] Complete | Shape: {df.shape[0]} x {df.shape[1]}")
-        return df
+        return self._validate_nulls(
+            df,
+            expected_nulls={
+                "buying_group_id":            "Customer not part of a buying group",
+                "alternate_contact_person_id": "No alternate contact assigned",
+                "credit_limit":               "Customer has no credit limit set",
+            },
+            required_columns=["customer_id", "customer_name", "customer_category_id", "delivery_method_id", "account_opened_date"],
+        )
 
 
 if __name__ == "__main__":

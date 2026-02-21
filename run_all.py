@@ -16,9 +16,12 @@ from src.etl.dimensions.people_transformer import PeopleTransformer
 from src.etl.dimensions.stock_item_transformer import StockItemTransformer
 from src.etl.dimensions.stock_item_holdings_transformer import StockItemHoldingsTransformer
 
+from src.etl.gold.dim_customer_transformer import DimCustomerTransformer
+
 
 def run_all():
-    transformers = [
+    # ── Bronze -> Silver ──────────────────────────────────────────────
+    silver_transformers = [
         OrderTransformer(),
         OrderLineTransformer(),
         CustomerTransformer(),
@@ -32,7 +35,6 @@ def run_all():
 
         *[DimensionTransformer(name) for name in DIMENSIONS_CONFIG],
 
-
         CitiesTransformer(),
         ProvinceTransformer(),
         PeopleTransformer(),
@@ -40,10 +42,21 @@ def run_all():
         StockItemHoldingsTransformer(),
     ]
 
-    for transformer in transformers:
+    # ── Silver -> Gold ────────────────────────────────────────────────
+    gold_transformers = [
+        DimCustomerTransformer(),
+    ]
+
+    for transformer in silver_transformers:
         transformer.run()
 
-    print(f"\n✅ All {len(transformers)} Transformer successfully completed!")
+    print(f"\n✅ {len(silver_transformers)} Silver Transformer completed!")
+
+    for transformer in gold_transformers:
+        transformer.run()
+
+    total = len(silver_transformers) + len(gold_transformers)
+    print(f"\n✅ All {total} Transformer successfully completed!")
 
 
 if __name__ == "__main__":

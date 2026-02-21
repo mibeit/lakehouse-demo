@@ -1,7 +1,6 @@
 import pandas as pd
 import yaml
-from pathlib import Path
-from src.etl.base_transformer import BaseTransformer, BASE_DIR
+from src.etl.base_transformer import SilverTransformer, BASE_DIR
 
 
 # Load config once at module level
@@ -11,7 +10,7 @@ with open(CONFIG_PATH, "r") as f:
     DIMENSIONS_CONFIG = yaml.safe_load(f)["dimensions"]
 
 
-class DimensionTransformer(BaseTransformer):
+class DimensionTransformer(SilverTransformer):
     """
     Generic transformer for simple dimension tables.
     Driven entirely by dimensions.yml config – no table-specific code needed.
@@ -53,29 +52,9 @@ class DimensionTransformer(BaseTransformer):
         return df
 
     def _handle_nulls(self, df: pd.DataFrame) -> pd.DataFrame:
-        if "valid_to" in df.columns:
-            null_count = df["valid_to"].isna().sum()
-            self.logger.info(f"[NULLS] valid_to: {null_count} null(s) -> expected (currently active records)")
-
-        for col in df.columns:
-            if col == "valid_to":
-                continue
-            null_count = df[col].isna().sum()
-            if null_count > 0:
-                self.logger.warning(f"[NULLS] Unexpected nulls in {col}: {null_count}")
-            else:
-                self.logger.info(f"[NULLS] {col}: OK (0 nulls)")
-
-        return df
-
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        self.logger.info(f"[TRANSFORM] Starting pipeline: {self.config['bronze_file']}")
-        df = self._drop_empty_columns(df)
-        df = self._rename_columns(df)
-        df = self._cast_dtypes(df)
-        df = self._handle_nulls(df)
-        self.logger.info(f"[TRANSFORM] Complete | Shape: {df.shape[0]} x {df.shape[1]}")
-        return df
+        expected = {"valid_to": "Currently active records"} if "valid_to" in df.columns else {}
+        required = [col for col in df.columns if col != "valid_to"]
+        return self._validate_nulls(df, expected, required)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 import pandas as pd
-from src.etl.base_transformer import BaseTransformer, BASE_DIR
+from src.etl.base_transformer import SilverTransformer, BASE_DIR
 
 
-class StockItemHoldingsTransformer(BaseTransformer):
+class StockItemHoldingsTransformer(SilverTransformer):
     """Transform warehouse.stockitemholdings CSV from Bronze layer to Silver (Parquet)."""
 
     _output_filename = "stock_item_holdings.parquet"
@@ -36,29 +36,10 @@ class StockItemHoldingsTransformer(BaseTransformer):
         return df
 
     def _handle_nulls(self, df: pd.DataFrame) -> pd.DataFrame:
-        required_columns = [
-            "stock_item_id",
-            "quantity_on_hand",
-            "reorder_level",
-            "target_stock_level",
-            "last_cost_price"
-        ]
-        for col in required_columns:
-            null_count = df[col].isna().sum()
-            if null_count > 0:
-                self.logger.warning(f"[NULLS] Unexpected nulls in {col}: {null_count}")
-            else:
-                self.logger.info(f"[NULLS] {col}: OK (0 nulls)")
-        return df
-
-    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
-        self.logger.info("[TRANSFORM] Starting pipeline: warehouse.stockitemholdings")
-        df = self._drop_empty_columns(df)
-        df = self._rename_columns(df)
-        df = self._cast_dtypes(df)
-        df = self._handle_nulls(df)
-        self.logger.info(f"[TRANSFORM] Complete | Shape: {df.shape[0]} x {df.shape[1]}")
-        return df
+        return self._validate_nulls(
+            df,
+            required_columns=["stock_item_id", "quantity_on_hand", "reorder_level", "target_stock_level", "last_cost_price"],
+        )
 
 
 if __name__ == "__main__":

@@ -38,15 +38,13 @@ class PeopleTransformer(SilverTransformer):
         self.logger.info("[TRANSFORM] Columns renamed to snake_case")
         return df
 
+    
     def _cast_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
         for col in ["valid_from", "valid_to"]:
             df[col] = self._to_datetime(df[col])
             self.logger.info(f"[TRANSFORM] Cast to datetime: {col}")
 
-        # Drop redundant parsed column
-        df = df.drop(columns=["valid_from_parsed"])
-        self.logger.info("[TRANSFORM] Dropped redundant column: valid_from_parsed")
-
+        df = df.drop(columns=["valid_from_parsed"], errors="ignore")
         return df
 
     def _handle_nulls(self, df: pd.DataFrame) -> pd.DataFrame:

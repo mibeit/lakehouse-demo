@@ -1,4 +1,5 @@
 import logging
+import time
 import pandas as pd
 from pathlib import Path
 from abc import ABC, abstractmethod
@@ -100,10 +101,15 @@ class BaseTransformer(ABC):
             )
 
     def load_bronze(self) -> pd.DataFrame:
-        """Load raw CSV from Bronze layer into a Pandas DataFrame."""
-        if not self.bronze_path or not self.bronze_path.exists():
-            self.logger.error(f"[LOAD] Bronze file not found: {self.bronze_path}")
-            return pd.DataFrame()
+        """Load raw CSV from Bronze layer into a Pandas DataFrame.
+
+        Raises:
+            FileNotFoundError: If bronze_path is None or does not exist.
+        """
+        if not self.bronze_path:
+            raise FileNotFoundError("bronze_path is not set (None)")
+        if not self.bronze_path.exists():
+            raise FileNotFoundError(f"Bronze file not found: {self.bronze_path}")
 
         df = pd.read_csv(self.bronze_path)
 
@@ -137,9 +143,17 @@ class BaseTransformer(ABC):
 
         return df
     
-    def _to_datetime(self, series: pd.Series) -> pd.Series:
-        """Cast to datetime64[ns] consistently across all transformers."""
-        return pd.to_datetime(series, errors="coerce").astype("datetime64[ns]")
+    def _to_datetime(self, series: pd.Series, fmt: str = None) -> pd.Series:
+        """Cast to datetime64[ns] consistently across all transformers.
+
+        Args:
+            series: Column to convert.
+            fmt:    Optional strftime format string.  When *None* the format
+                    is inferred automatically — for small Series Pandas may
+                    fall back to per-element parsing (slow + UserWarning).
+                    Pass an explicit format to avoid that.
+        """
+        return pd.to_datetime(series, format=fmt, errors="coerce").astype("datetime64[ns]")
 
     def _validate_nulls(
         self,
@@ -157,8 +171,13 @@ class BaseTransformer(ABC):
         Returns:
             The original DataFrame (unchanged).
         """
+        available = set(df.columns)
+
         if expected_nulls:
             for col, reason in expected_nulls.items():
+                if col not in available:
+                    self.logger.warning(f"[NULLS] Column '{col}' not in DataFrame — skipped")
+                    continue
                 null_count = df[col].isna().sum()
                 self.logger.info(
                     f"[NULLS] {col}: {null_count} null(s) -> expected ({reason})"
@@ -166,6 +185,9 @@ class BaseTransformer(ABC):
 
         if required_columns:
             for col in required_columns:
+                if col not in available:
+                    self.logger.warning(f"[NULLS] Required column '{col}' not in DataFrame!")
+                    continue
                 null_count = df[col].isna().sum()
                 if null_count > 0:
                     self.logger.warning(
@@ -282,18 +304,29 @@ class SilverTransformer(BaseTransformer):
     def run(self) -> None:
         """Orchestrate full Bronze -> Silver pipeline: load -> transform -> save."""
         self._check_output_filename()
+        t0 = time.perf_counter()
 
-        self.logger.info(f"[RUN] Starting Bronze -> Silver: {self.bronze_path.name}")
+        try:
+            self.logger.info(f"[RUN] Starting Bronze -> Silver: {self.bronze_path.name}")
 
-        df = self.load_bronze()
-        if df.empty:
-            self.logger.error("[RUN] Aborting — empty DataFrame after load")
-            return
+            df = self.load_bronze()
+            if df.empty:
+                self.logger.error("[RUN] Aborting — empty DataFrame after load")
+                return
 
-        df = self.transform(df)
-        self.save_silver(df, self._output_filename)
+            df = self.transform(df)
+            self.save_silver(df, self._output_filename)
 
-        self.logger.info(f"[RUN] Complete: {self._output_filename}")
+            elapsed = time.perf_counter() - t0
+            self.logger.info(f"[RUN] Complete: {self._output_filename} [OK] ({elapsed:.2f}s)")
+
+        except Exception as e:
+            elapsed = time.perf_counter() - t0
+            self.logger.error(
+                f"[RUN] Error during transformation ({elapsed:.2f}s): {e}",
+                exc_info=True,
+            )
+            raise
 
 
 # ====================================================================== #
@@ -334,6 +367,7 @@ class GoldTransformer(BaseTransformer):
     def run(self) -> None:
         """Execute full Silver -> Gold transformation and save."""
         self._check_output_filename()
+        t0 = time.perf_counter()
 
         try:
             self.logger.info(f"[RUN] Starting Silver -> Gold: {self.__class__.__name__}")
@@ -345,8 +379,13 @@ class GoldTransformer(BaseTransformer):
                 return
 
             self.save_gold(df, self._output_filename)
-            self.logger.info(f"[RUN] Complete: {self._output_filename} [OK]")
+            elapsed = time.perf_counter() - t0
+            self.logger.info(f"[RUN] Complete: {self._output_filename} [OK] ({elapsed:.2f}s)")
 
         except Exception as e:
-            self.logger.error(f"[RUN] Error during transformation: {e}", exc_info=True)
+            elapsed = time.perf_counter() - t0
+            self.logger.error(
+                f"[RUN] Error during transformation ({elapsed:.2f}s): {e}",
+                exc_info=True,
+            )
             raise

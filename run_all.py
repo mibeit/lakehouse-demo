@@ -21,6 +21,7 @@ from src.etl.gold.dim_geography_transformer import DimGeographyTransformer
 from src.etl.gold.dim_people_transformer import DimPeopleTransformer
 from src.etl.gold.dim_stockitem_transformer import DimStockItemTransformer
 from src.etl.gold.dim_supplier_transformer import DimSupplierTransformer
+from src.etl.gold.fact_orders_transformer import FactOrdersTransformer
 from src.etl.base_transformer import LOG_DIR
 
 import logging
@@ -108,6 +109,7 @@ def run_all():
         DimPeopleTransformer(),
         DimStockItemTransformer(),
         DimSupplierTransformer(),
+        FactOrdersTransformer(),
     ]
     silver_failed = _run_transformers(silver_transformers, "Silver")
     logger.info(f"Silver: {len(silver_transformers) - len(silver_failed)}/{len(silver_transformers)} OK")

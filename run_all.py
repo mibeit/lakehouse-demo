@@ -22,6 +22,8 @@ from src.etl.gold.dim_people_transformer import DimPeopleTransformer
 from src.etl.gold.dim_stockitem_transformer import DimStockItemTransformer
 from src.etl.gold.dim_supplier_transformer import DimSupplierTransformer
 from src.etl.gold.fact_orders_transformer import FactOrdersTransformer
+from src.etl.gold.fact_purchases_transformer import FactPurchasesTransformer
+from src.etl.gold.dim_calendar import DimCalendarTransformer
 from src.etl.base_transformer import LOG_DIR
 
 import logging
@@ -104,12 +106,14 @@ def run_all():
 
     # -- Silver -> Gold ------------------------------------------------
     gold_transformers = [
+        DimCalendarTransformer(),
         DimCustomerTransformer(),
         DimGeographyTransformer(),
         DimPeopleTransformer(),
         DimStockItemTransformer(),
         DimSupplierTransformer(),
         FactOrdersTransformer(),
+        FactPurchasesTransformer(),
     ]
     silver_failed = _run_transformers(silver_transformers, "Silver")
     logger.info(f"Silver: {len(silver_transformers) - len(silver_failed)}/{len(silver_transformers)} OK")
